@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kamermeerderheid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: two hemicycles side by side as the summary, party picker and coalition finder below. */
+:root {
+  --bg: #f2f4f8;
+  --surface: #ffffff;
+  --ink: #14213a;
+  --muted: #5b6578;
+  --line: #d9dee7;
+  --accent: #1d3f8f;
+  --ok: #1e7f4f;
+  --short: #b4462b;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1320; --surface: #151d2c; --ink: #e6eaf2; --muted: #97a1b3; --line: #2a3447;
+    --accent: #8fb0f5; --ok: #4cc38a; --short: #f08a6c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1320; --surface: #151d2c; --ink: #e6eaf2; --muted: #97a1b3; --line: #2a3447;
+  --accent: #8fb0f5; --ok: #4cc38a; --short: #f08a6c; color-scheme: dark;
+}
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+}
+.page {
+  max-width: 1120px; margin: 0 auto; padding-block: 32px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px;
+}
+header { display: flex; flex-direction: column; gap: 6px; }
+.topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin: 0; }
+.lede { color: var(--muted); margin: 0; max-width: 65ch; }
+.verdict { font-family: var(--font-display); font-weight: 700; font-size: 18px; margin: 0; }
+.verdict .tag { color: var(--accent); }
+
+.houses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.house { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.house-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.house-head .meta { color: var(--muted); font-size: 13px; }
+.house svg { width: 100%; height: auto; display: block; }
+.house svg .seat { stroke: var(--surface); stroke-width: .5; transition: fill-opacity .15s; }
+.house svg .seat.vacant { fill: var(--line); }
+.house svg .maj { stroke: var(--ink); stroke-width: .8; stroke-dasharray: 2 1.6; opacity: .7; }
+.house svg text { fill: var(--muted); font-family: var(--font-mono); font-size: 5.5px; }
+.stats { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.count { font-family: var(--font-display); font-weight: 800; font-size: 40px; line-height: 1; font-variant-numeric: tabular-nums; }
+.count small { font-size: 18px; color: var(--muted); font-weight: 600; }
+.pill { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.pill.short { color: var(--short); background: color-mix(in srgb, var(--short) 14%, transparent); }
+.bar { position: relative; height: 10px; border-radius: 5px; background: var(--line); display: flex; overflow: hidden; }
+.bar span { height: 100%; }
+.bar-wrap { position: relative; }
+.bar-wrap .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); transform: translateX(-1px); }
+.breakdown { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.5em; }
+.breakdown b { color: var(--ink); font-weight: 600; }
+
+.lower { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: 600 13px var(--font-body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.party-list { display: flex; flex-direction: column; }
+.party-row, .list-head {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) 44px 44px; gap: 12px; align-items: center; padding: 7px 8px;
+}
+.list-head { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding-block: 0 6px; border-bottom: 1px solid var(--line); }
+.list-head span:nth-child(n+3), .party-row .num { text-align: right; }
+.party-row {
+  width: 100%; font: inherit; color: inherit; text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer; border-radius: 0;
+}
+.party-row:hover { background: color-mix(in srgb, var(--c) 7%, var(--surface)); }
+.party-row[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 15%, var(--surface)); }
+.swatch { width: 16px; height: 16px; border-radius: 4px; border: 2px solid var(--c); display: grid; place-items: center; }
+.party-row[aria-pressed="true"] .swatch { background: var(--c); }
+.swatch svg { width: 10px; height: 10px; opacity: 0; }
+.party-row[aria-pressed="true"] .swatch svg { opacity: 1; }
+.pname { display: flex; flex-direction: column; min-width: 0; }
+.pname b { font-weight: 600; }
+.pname span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.num.zero { color: var(--muted); opacity: .6; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; padding: 2px; gap: 2px; }
+.seg button { font: 600 12px var(--font-body); color: var(--muted); background: transparent; border: 0; border-radius: 5px; padding: 4px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.sugg-list { display: flex; flex-direction: column; gap: 8px; }
+.sugg {
+  font: inherit; color: inherit; text-align: left; background: transparent; border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+}
+.sugg:hover { border-color: var(--accent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--c) 18%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); }
+.sugg .totals { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+footer { font-size: 12px; color: var(--muted); }
+footer a { color: var(--accent); }
+
+@media (max-width: 760px) {
+  .houses, .lower { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .house svg .seat { transition: none; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="topline">
+      <div class="eyebrow" id="as-of"></div>
+      <div class="seg" id="lang" role="group">
+        <button type="button" data-lang="nl" aria-pressed="true">NL</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+    <h1>Kamermeerderheid</h1>
+    <p class="lede" data-i18n="lede"></p>
+  </header>
+
+  <p class="verdict" id="verdict"></p>
+
+  <section class="houses" id="houses"></section>
+
+  <section class="lower">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Fracties</h2>
+        <div class="actions">
+          <button class="btn" id="preset-jetten" type="button">Kabinet-Jetten</button>
+          <button class="btn" id="clear" type="button" data-i18n="clear"></button>
+        </div>
+      </div>
+      <div class="party-list" id="party-list"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2 data-i18n="completeTitle"></h2>
+        <div class="seg" id="target">
+          <button type="button" data-target="both" aria-pressed="true" data-i18n="both"></button>
+          <button type="button" data-target="tk" aria-pressed="false">TK</button>
+          <button type="button" data-target="ek" aria-pressed="false">EK</button>
+        </div>
+      </div>
+      <p class="hint" id="sugg-hint"></p>
+      <div class="sugg-list" id="sugg-list"></div>
+    </div>
+  </section>
+
+  <footer data-i18n="footer"></footer>
+</div>
+
+<script>
+const TRANSLATIONS = {
+  nl: {
+    locale: "nl-NL",
+    asOfLoading: "Staten-Generaal · zetels worden geladen",
+    asOf: date => `Staten-Generaal · zetels per ${date}`,
+    lede: "Selecteer fracties om te zien hoeveel zetels ze hebben in de Tweede Kamer en de Eerste Kamer, en hoe ver ze van een meerderheid af zitten.",
+    clear: "Wissen",
+    completeTitle: "Coalitie aanvullen",
+    both: "Beide",
+    footer: `Zetels per fractie uit de <a href="https://opendata.tweedekamer.nl/">open data van de Tweede Kamer</a> en <a href="https://www.eerstekamer.nl/fracties">eerstekamer.nl</a>, inclusief afsplitsingen sinds de verkiezingen. Kleuren volgen de huisstijl van de partij waar die bestaat; eenmansfracties krijgen neutrale tinten.`,
+    houseMeta: (total, majority) => `${total} zetels · meerderheid ${majority}`,
+    svgLabel: (house, seats) => `${house}, ${seats} zetels geselecteerd`,
+    majority: spare => spare === 0 ? "Precies een meerderheid" : `Meerderheid, ${spare} over`,
+    short: missing => `${missing} tekort`,
+    noneSelected: "Geen fracties geselecteerd",
+    verdictBoth: "Meerderheid in beide Kamers",
+    verdictOne: house => `Alleen een meerderheid in de ${house}`,
+    verdictNone: "In geen van beide Kamers een meerderheid",
+    fractie: "Fractie",
+    scopeBoth: "beide Kamers",
+    scopeHouse: house => `de ${house}`,
+    hasMajority: scope => `De selectie heeft al een meerderheid in ${scope}.`,
+    noCombination: scope => `Geen combinatie van maximaal vijf extra fracties haalt een meerderheid in ${scope}.`,
+    suggestions: scope => `Kleinste combinaties van fracties om toe te voegen voor een meerderheid in ${scope}. Klik om toe te voegen.`,
+    vacant: "Vacature",
+    singleMember: "Eenmansfractie",
+    pvvSplit: "Afsplitsing van de PVV",
+    loadError: message => `Zetelaantallen konden niet worden geladen (${message}). Herlaad de pagina om het opnieuw te proberen.`,
+  },
+  en: {
+    locale: "en-GB",
+    asOfLoading: "Staten-Generaal · loading seat counts",
+    asOf: date => `Staten-Generaal · seats as of ${date}`,
+    lede: "Select fracties to see how many seats they hold in the Tweede Kamer and the Eerste Kamer, and how far they are from a majority in each house.",
+    clear: "Clear",
+    completeTitle: "Complete the coalition",
+    both: "Both",
+    footer: `Seat counts per fractie from the <a href="https://opendata.tweedekamer.nl/">Tweede Kamer open data API</a> and <a href="https://www.eerstekamer.nl/fracties">eerstekamer.nl</a>, including splits since the elections. Colours follow party branding where one exists; one-member fracties get neutral tones.`,
+    houseMeta: (total, majority) => `${total} seats · majority ${majority}`,
+    svgLabel: (house, seats) => `${house}, ${seats} seats selected`,
+    majority: spare => spare === 0 ? "Majority, exactly" : `Majority, +${spare} spare`,
+    short: missing => `${missing} short`,
+    noneSelected: "No fracties selected",
+    verdictBoth: "Majority in both houses",
+    verdictOne: house => `Majority in the ${house} only`,
+    verdictNone: "No majority in either house",
+    fractie: "Fractie",
+    scopeBoth: "both houses",
+    scopeHouse: house => `the ${house}`,
+    hasMajority: scope => `The selection already has a majority in ${scope}.`,
+    noCombination: scope => `No combination of up to five more fracties reaches a majority in ${scope}.`,
+    suggestions: scope => `Smallest sets of fracties to add for a majority in ${scope}. Click one to add it.`,
+    vacant: "Vacant",
+    singleMember: "Single-member fractie",
+    pvvSplit: "Split from the PVV",
+    loadError: message => `Could not load seat counts (${message}). Reload the page to try again.`,
+  },
+};
+const LANGUAGE_KEY = "kamermeerderheid-language";
+
+function initialLanguage() {
+  const requested = new URLSearchParams(location.search).get("lang");
+  if (requested in TRANSLATIONS) return requested;
+  try {
+    const saved = localStorage.getItem(LANGUAGE_KEY);
+    if (saved in TRANSLATIONS) return saved;
+  } catch {}
+  return "nl";
+}
+
+let language = initialLanguage();
+const text = () => TRANSLATIONS[language];
+
+// Keyed by the names the official sources use, ordered roughly left to right.
+// The order positions seats in the hemicycles; fracties not listed here go in the middle.
+const KNOWN = [
+  ["PRO", "#b0124a"],
+  ["SP", "#ee1c23"],
+  ["PvdD", "#006c2e"],
+  ["DENK", "#41bac1"],
+  ["Volt", "#502379"],
+  ["D66", "#00ae41"],
+  ["50PLUS", "#92278f"],
+  ["ChristenUnie", "#00a6d6"],
+  ["CDA", "#007c5e"],
+  ["VVD", "#ff7709"],
+  ["OPNL", "#8c7a5b", "Onafhankelijke Politiek Nederland"],
+  [null],
+  ["BBB", "#94c11f", "BoerBurgerBeweging"],
+  ["Lid Keijzer", "#d1a93a", "@singleMember"],
+  ["SGP", "#c25a10"],
+  ["JA21", "#2e3f86"],
+  ["Groep Markuszower", "#5d87c9", "@pvvSplit"],
+  ["PVV", "#0f3a72"],
+  ["FVD", "#841818", "Forum voor Democratie"],
+];
+const NEUTRAL_COLORS = ["#6e9c7e", "#8995a8", "#a88c8c", "#a3a86a", "#9c8fb0", "#7f9fa6", "#b09477", "#8a8a9e"];
+const UNKNOWN_ORDER = KNOWN.findIndex(([name]) => name === null);
+const VACANT = { id: "vacant", color: "", tk: 0, ek: 0 };
+
+// Names starting with "@" refer to a translation key.
+const displayName = name => name.startsWith("@") ? text()[name.slice(1)] : name;
+
+let PARTIES = [];
+
+function buildParties(data) {
+  const byName = new Map();
+  const entry = name => {
+    if (!byName.has(name)) byName.set(name, { id: name, short: name, name: "", tk: 0, ek: 0 });
+    return byName.get(name);
+  };
+  data.tk.forEach(f => Object.assign(entry(f.name), { tk: f.seats, name: f.fullName }));
+  data.ek.forEach(f => { entry(f.name).ek = f.seats; });
+
+  let neutralIndex = 0;
+  return [...byName.values()].map(p => {
+    const knownIndex = KNOWN.findIndex(([name]) => name === p.id);
+    const [, color, fullName] = KNOWN[knownIndex] ?? [];
+    const isSingleMember = p.tk + p.ek === 1 || p.id.startsWith("Fractie-") || p.id.startsWith("Lid ");
+    return {
+      ...p,
+      color: color ?? NEUTRAL_COLORS[neutralIndex++ % NEUTRAL_COLORS.length],
+      name: fullName ?? (p.name && p.name !== p.id ? p.name : isSingleMember ? "@singleMember" : ""),
+      order: knownIndex >= 0 ? knownIndex : UNKNOWN_ORDER,
+    };
+  }).sort((a, b) => a.order - b.order);
+}
+
+const HOUSES = [
+  { key: "tk", name: "Tweede Kamer", total: 150, rows: 7 },
+  { key: "ek", name: "Eerste Kamer", total: 75, rows: 5 },
+].map(h => ({ ...h, majority: Math.floor(h.total / 2) + 1 }));
+
+const JETTEN = ["D66", "VVD", "CDA"];
+const STORAGE_KEY = "kamermeerderheid-selection";
+
+let selected = new Set(JETTEN);
+let target = "both";
+
+function restoreSelection() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (Array.isArray(saved)) selected = new Set(saved);
+  } catch {}
+  selected = new Set([...selected].filter(id => PARTIES.some(p => p.id === id)));
+}
+
+const seatsOf = (ids, key) => PARTIES.reduce((sum, p) => sum + (ids.has(p.id) ? p[key] : 0), 0);
+
+function hemicycleLayout(total, rows) {
+  const innerRadius = 0.4;
+  const radii = Array.from({ length: rows }, (_, i) => innerRadius + (1 - innerRadius) * i / (rows - 1));
+  const radiusSum = radii.reduce((a, b) => a + b, 0);
+  const exact = radii.map(r => total * r / radiusSum);
+  const counts = exact.map(Math.floor);
+  const remaining = total - counts.reduce((a, b) => a + b, 0);
+  exact.map((x, i) => [x - counts[i], i]).sort((a, b) => b[0] - a[0]).slice(0, remaining).forEach(([, i]) => counts[i]++);
+
+  const seats = [];
+  radii.forEach((r, row) => {
+    const n = counts[row];
+    for (let j = 0; j < n; j++) seats.push({ angle: n === 1 ? Math.PI / 2 : Math.PI * (1 - j / (n - 1)), r });
+  });
+  seats.sort((a, b) => b.angle - a.angle || a.r - b.r);
+
+  const rowGap = (1 - innerRadius) / (rows - 1);
+  const arcGap = Math.min(...radii.map((r, i) => Math.PI * r / (counts[i] - 1)));
+  return { seats, dotRadius: 0.44 * Math.min(rowGap, arcGap) };
+}
+
+const LAYOUTS = Object.fromEntries(HOUSES.map(h => [h.key, hemicycleLayout(h.total, h.rows)]));
+
+function hemicycleSvg(house) {
+  const { seats, dotRadius } = LAYOUTS[house.key];
+  const cx = 100, cy = 100, scale = 92;
+  const ordered = [...PARTIES.filter(p => selected.has(p.id)), ...PARTIES.filter(p => !selected.has(p.id))];
+  const seatParties = ordered.flatMap(p => Array(p[house.key]).fill(p));
+
+  const circles = seats.map((s, i) => {
+    const p = seatParties[i] ?? VACANT;
+    const x = cx + Math.cos(s.angle) * s.r * scale, y = cy - Math.sin(s.angle) * s.r * scale;
+    const opacity = selected.has(p.id) || p === VACANT ? 1 : 0.2;
+    const seatClass = p === VACANT ? "seat vacant" : "seat";
+    const label = p === VACANT ? text().vacant : p.short;
+    return `<circle class="${seatClass}" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="${(dotRadius * scale).toFixed(2)}" fill="${p.color}" fill-opacity="${opacity}"><title>${label}</title></circle>`;
+  }).join("");
+
+  return `<svg viewBox="0 -6 200 112" role="img" aria-label="${text().svgLabel(house.name, seatsOf(selected, house.key))}">
+    ${circles}
+    <line class="maj" x1="${cx}" x2="${cx}" y1="${cy - scale * 0.33}" y2="${cy - scale * 1.04}"></line>
+    <text x="${cx + 3}" y="-1">${house.majority}</text>
+  </svg>`;
+}
+
+function renderHouses() {
+  const container = document.getElementById("houses");
+  container.innerHTML = HOUSES.map(house => {
+    const seats = seatsOf(selected, house.key);
+    const diff = seats - house.majority;
+    const pill = diff >= 0
+      ? `<span class="pill ok">${text().majority(diff)}</span>`
+      : `<span class="pill short">${text().short(-diff)}</span>`;
+    const members = PARTIES.filter(p => selected.has(p.id) && p[house.key] > 0);
+    const breakdown = members.length
+      ? members.map(p => `${p.short} <b>${p[house.key]}</b>`).join(" · ")
+      : text().noneSelected;
+    const segments = members.map(p => `<span style="width:${100 * p[house.key] / house.total}%;background:${p.color}"></span>`).join("");
+    return `<article class="house">
+      <div class="house-head"><h2>${house.name}</h2><span class="meta">${text().houseMeta(house.total, house.majority)}</span></div>
+      ${hemicycleSvg(house)}
+      <div class="stats"><span class="count">${seats}<small> / ${house.majority}</small></span>${pill}</div>
+      <div class="bar-wrap"><div class="bar">${segments}</div><div class="tick" style="left:${100 * house.majority / house.total}%"></div></div>
+      <div class="breakdown">${breakdown}</div>
+    </article>`;
+  }).join("");
+
+  const majorities = HOUSES.filter(h => seatsOf(selected, h.key) >= h.majority).map(h => h.name);
+  const verdict = majorities.length === 2 ? text().verdictBoth
+    : majorities.length === 1 ? text().verdictOne(majorities[0])
+    : text().verdictNone;
+  const isJetten = selected.size === JETTEN.length && JETTEN.every(id => selected.has(id));
+  document.getElementById("verdict").innerHTML = (isJetten ? `<span class="tag">Kabinet-Jetten:</span> ` : "") + verdict;
+}
+
+const CHECK = `<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1.5 5.2 4 7.6 8.5 2.6" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function renderPartyList() {
+  const sorted = [...PARTIES].sort((a, b) => b.tk - a.tk || b.ek - a.ek);
+  const num = n => `<span class="num${n ? "" : " zero"}">${n || "–"}</span>`;
+  document.getElementById("party-list").innerHTML =
+    `<div class="list-head"><span></span><span>${text().fractie}</span><span>TK</span><span>EK</span></div>` +
+    sorted.map(p => `<button type="button" class="party-row" data-id="${p.id}" aria-pressed="${selected.has(p.id)}" style="--c:${p.color}">
+      <span class="swatch">${CHECK}</span>
+      <span class="pname"><b>${p.short}</b><span>${displayName(p.name)}</span></span>
+      ${num(p.tk)}${num(p.ek)}
+    </button>`).join("");
+}
+
+function findCompletions() {
+  const houses = HOUSES.filter(h => target === "both" || h.key === target);
+  const base = Object.fromEntries(houses.map(h => [h.key, seatsOf(selected, h.key)]));
+  if (houses.every(h => base[h.key] >= h.majority)) return null;
+
+  const candidates = PARTIES.filter(p => !selected.has(p.id) && houses.some(h => p[h.key] > 0));
+  const reaches = seats => houses.every(h => seats[h.key] >= h.majority);
+  const results = [];
+  const maxAdded = 5;
+
+  (function extend(start, combo, seats) {
+    if (reaches(seats)) {
+      const minimal = combo.every(p => houses.some(h => seats[h.key] - p[h.key] < h.majority));
+      if (minimal) results.push({ combo, seats });
+      return;
+    }
+    if (combo.length === maxAdded) return;
+    for (let i = start; i < candidates.length; i++) {
+      const p = candidates[i];
+      const next = Object.fromEntries(houses.map(h => [h.key, seats[h.key] + p[h.key]]));
+      extend(i + 1, [...combo, p], next);
+    }
+  })(0, [], base);
+
+  const fewest = Math.min(...results.map(r => r.combo.length));
+  const margin = r => Math.min(...houses.map(h => r.seats[h.key] - h.majority));
+  return results
+    .filter(r => r.combo.length <= fewest + 1)
+    .sort((a, b) => a.combo.length - b.combo.length || margin(b) - margin(a))
+    .slice(0, 8)
+    .map(r => ({ ...r, houses }));
+}
+
+function renderSuggestions() {
+  const hint = document.getElementById("sugg-hint");
+  const list = document.getElementById("sugg-list");
+  const completions = findCompletions();
+  const scope = target === "both" ? text().scopeBoth : text().scopeHouse(HOUSES.find(h => h.key === target).name);
+
+  if (completions === null) {
+    hint.textContent = text().hasMajority(scope);
+    list.innerHTML = "";
+    return;
+  }
+  if (completions.length === 0) {
+    hint.textContent = text().noCombination(scope);
+    list.innerHTML = "";
+    return;
+  }
+  hint.textContent = text().suggestions(scope);
+  list.innerHTML = completions.map(({ combo, houses }) => {
+    const all = new Set([...selected, ...combo.map(p => p.id)]);
+    const totals = HOUSES.map(h => {
+      const seats = seatsOf(all, h.key);
+      return `${h.key.toUpperCase()} ${seats}/${h.majority}`;
+    }).join(" · ");
+    return `<button type="button" class="sugg" data-add="${combo.map(p => p.id).join(",")}">
+      <span class="chips">${combo.map(p => `<span class="chip" style="--c:${p.color}">+ ${p.short}</span>`).join("")}</span>
+      <span class="totals">${totals}</span>
+    </button>`;
+  }).join("");
+}
+
+function render() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...selected])); } catch {}
+  renderHouses();
+  renderPartyList();
+  renderSuggestions();
+}
+
+document.getElementById("party-list").addEventListener("click", e => {
+  const row = e.target.closest(".party-row");
+  if (!row) return;
+  const id = row.dataset.id;
+  selected.has(id) ? selected.delete(id) : selected.add(id);
+  render();
+  document.querySelector(`.party-row[data-id="${CSS.escape(id)}"]`)?.focus();
+});
+document.getElementById("sugg-list").addEventListener("click", e => {
+  const btn = e.target.closest(".sugg");
+  if (!btn) return;
+  btn.dataset.add.split(",").forEach(id => selected.add(id));
+  render();
+});
+document.getElementById("target").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  target = btn.dataset.target;
+  document.querySelectorAll("#target button").forEach(b => b.setAttribute("aria-pressed", b === btn));
+  renderSuggestions();
+});
+document.getElementById("preset-jetten").addEventListener("click", () => { selected = new Set(JETTEN); render(); });
+document.getElementById("clear").addEventListener("click", () => { selected = new Set(); render(); });
+
+let updatedAt = null;
+let loadError = null;
+
+function applyLanguage() {
+  document.documentElement.lang = language;
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.innerHTML = text()[el.dataset.i18n]; });
+  document.querySelectorAll("#lang button").forEach(b => b.setAttribute("aria-pressed", b.dataset.lang === language));
+
+  const asOf = document.getElementById("as-of");
+  if (updatedAt) {
+    asOf.textContent = text().asOf(updatedAt.toLocaleString(text().locale, { dateStyle: "long", timeStyle: "short" }));
+  } else {
+    asOf.textContent = loadError ? "Staten-Generaal" : text().asOfLoading;
+  }
+
+  if (loadError) document.getElementById("verdict").textContent = text().loadError(loadError);
+  else if (PARTIES.length) render();
+}
+
+document.getElementById("lang").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  language = btn.dataset.lang;
+  try { localStorage.setItem(LANGUAGE_KEY, language); } catch {}
+  const url = new URL(location.href);
+  url.searchParams.set("lang", language);
+  history.replaceState(null, "", url);
+  applyLanguage();
+});
+
+async function load() {
+  try {
+    const response = await fetch("api/fracties");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    PARTIES = buildParties(data);
+    updatedAt = new Date(data.updated);
+    restoreSelection();
+  } catch (error) {
+    loadError = error.message;
+  }
+  applyLanguage();
+}
+
+applyLanguage();
+load();
+</script>
+</body>
+</html>

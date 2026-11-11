@@ -1,0 +1,8 @@
+services:
+  kamermeerderheid:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      CACHE_SECONDS: 3600
+    restart: unless-stopped
