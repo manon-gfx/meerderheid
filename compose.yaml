@@ -1,5 +1,6 @@
 services:
-  kamermeerderheid:
+  meerderheid:
+    image: docker.manon-palace.com/meerderheid:latest
     build: .
     ports:
       - "8080:8080"

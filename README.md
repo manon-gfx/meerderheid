@@ -13,11 +13,17 @@ If a fetch fails or the seats don't add up to the house size, the server keeps s
 
 ## Run
 
+Every push to `main` builds an image for amd64 and arm64 and pushes it to
+`docker.manon-palace.com/meerderheid` (tags `latest` and `sha-<commit>`; `v*` git tags also get a version tag).
+The workflow needs the repository secrets `REGISTRY_USERNAME` and `REGISTRY_PASSWORD`.
+
 ```sh
-docker compose up -d --build
+docker login docker.manon-palace.com
+docker compose pull && docker compose up -d
 ```
 
-The page is served on port 8080. Without Docker: `node server.js` (Node 22+, no dependencies).
+`docker compose up -d --build` builds the image locally instead. The page is served on port 8080.
+Without Docker: `node server.js` (Node 22+, no dependencies).
 
 | Variable        | Default | |
 |-----------------|---------|-|
