@@ -8,8 +8,15 @@ Seat counts are fetched from the official sources and cached for an hour:
 - Tweede Kamer: the [open data API](https://opendata.tweedekamer.nl/) (`Fractie.AantalZetels`)
 - Eerste Kamer: <https://www.eerstekamer.nl/fracties>
 
+Each house can also show the latest Tweede Kamer poll instead of the current seats:
+- Peil.nl, Ipsos I&O and Verian/EenVandaag: the seat table on
+  [Wikipedia](https://en.wikipedia.org/wiki/Opinion_polling_for_the_next_Dutch_general_election)
+- [Peilingwijzer](https://peilingwijzer.tomlouwerse.nl/): the aggregate of Ipsos I&O and Verian
+
+There are no Eerste Kamer polls, so the page scales a Tweede Kamer poll to 75 seats with D'Hondt.
+
 If a fetch fails or the seats don't add up to the house size, the server keeps serving the last good data
-(`fallback.json` until the first successful fetch).
+for that source (`fallback.json` until the first successful fetch).
 
 ## Run
 
