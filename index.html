@@ -414,7 +414,7 @@ function hemicycleSvg(house) {
 
 function sourceSelect(house) {
   const formatDate = date => new Date(date).toLocaleDateString(text().locale, { day: "numeric", month: "short", timeZone: "UTC" });
-  const options = DATA.polls.map(p =>
+  const options = DATA.polls.toSorted((a, b) => b.date.localeCompare(a.date)).map(p =>
     `<option value="${p.pollster}"${sources[house.key] === p.pollster ? " selected" : ""}>${p.pollster} · ${formatDate(p.date)}</option>`
   ).join("");
   return `<select class="source" data-house="${house.key}" aria-label="${text().sourceLabel(house.name)}">
