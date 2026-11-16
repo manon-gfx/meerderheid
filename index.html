@@ -52,7 +52,13 @@ h2 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin
 .houses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .house { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .house-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.house-head .meta { color: var(--muted); font-size: 13px; }
+.house-head .source {
+  font: 600 13px var(--font-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 8px; max-width: 100%; cursor: pointer;
+}
+.house-head .source:hover { border-color: var(--accent); }
+.house .meta { color: var(--muted); font-size: 13px; margin-top: -4px; }
+.house .meta a { color: var(--accent); }
 .house svg { width: 100%; height: auto; display: block; }
 .house svg .seat { stroke: var(--surface); stroke-width: .5; transition: fill-opacity .15s; }
 .house svg .seat.vacant { fill: var(--line); }
@@ -77,7 +83,7 @@ h2 { font-family: var(--font-display); font-weight: 700; font-size: 19px; margin
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn { font: 600 13px var(--font-body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 5px 11px; cursor: pointer; }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .party-list { display: flex; flex-direction: column; }
 .party-row, .list-head {
@@ -171,6 +177,7 @@ footer a { color: var(--accent); }
 </div>
 
 <script>
+const POLLS_PAGE = "https://en.wikipedia.org/wiki/Opinion_polling_for_the_next_Dutch_general_election";
 const TRANSLATIONS = {
   nl: {
     locale: "nl-NL",
@@ -180,7 +187,13 @@ const TRANSLATIONS = {
     clear: "Wissen",
     completeTitle: "Coalitie aanvullen",
     both: "Beide",
-    footer: `Zetels per fractie uit de <a href="https://opendata.tweedekamer.nl/">open data van de Tweede Kamer</a> en <a href="https://www.eerstekamer.nl/fracties">eerstekamer.nl</a>, inclusief afsplitsingen sinds de verkiezingen. Kleuren volgen de huisstijl van de partij waar die bestaat; eenmansfracties krijgen neutrale tinten.`,
+    footer: `Zetels per fractie uit de <a href="https://opendata.tweedekamer.nl/">open data van de Tweede Kamer</a> en <a href="https://www.eerstekamer.nl/fracties">eerstekamer.nl</a>, inclusief afsplitsingen sinds de verkiezingen. Peilingen van Peil.nl, Ipsos I&amp;O en Verian/EenVandaag via <a href="${POLLS_PAGE}">Wikipedia</a>; de <a href="https://peilingwijzer.tomlouwerse.nl/">Peilingwijzer</a> combineert Ipsos I&amp;O en Verian. Er bestaan geen Eerste Kamer-peilingen, daarom wordt een Tweede Kamer-peiling met D'Hondt omgerekend naar 75 zetels. Kleuren volgen de huisstijl van de partij waar die bestaat; eenmansfracties krijgen neutrale tinten.`,
+    currentSeats: "Huidige zetels",
+    polls: "Peilingen",
+    projectedPolls: "Omgerekend uit TK-peiling",
+    sourceLabel: house => `Zetelverdeling ${house}`,
+    projected: "omgerekend uit TK-peiling",
+    source: "bron",
     houseMeta: (total, majority) => `${total} zetels · meerderheid ${majority}`,
     svgLabel: (house, seats) => `${house}, ${seats} zetels geselecteerd`,
     majority: spare => spare === 0 ? "Precies een meerderheid" : `Meerderheid, ${spare} over`,
@@ -208,7 +221,13 @@ const TRANSLATIONS = {
     clear: "Clear",
     completeTitle: "Complete the coalition",
     both: "Both",
-    footer: `Seat counts per fractie from the <a href="https://opendata.tweedekamer.nl/">Tweede Kamer open data API</a> and <a href="https://www.eerstekamer.nl/fracties">eerstekamer.nl</a>, including splits since the elections. Colours follow party branding where one exists; one-member fracties get neutral tones.`,
+    footer: `Seat counts per fractie from the <a href="https://opendata.tweedekamer.nl/">Tweede Kamer open data API</a> and <a href="https://www.eerstekamer.nl/fracties">eerstekamer.nl</a>, including splits since the elections. Polls by Peil.nl, Ipsos I&amp;O and Verian/EenVandaag via <a href="${POLLS_PAGE}">Wikipedia</a>; the <a href="https://peilingwijzer.tomlouwerse.nl/">Peilingwijzer</a> combines Ipsos I&amp;O and Verian. There are no Eerste Kamer polls, so a Tweede Kamer poll is scaled to 75 seats with D'Hondt. Colours follow party branding where one exists; one-member fracties get neutral tones.`,
+    currentSeats: "Current seats",
+    polls: "Polls",
+    projectedPolls: "Scaled from TK poll",
+    sourceLabel: house => `Seat distribution ${house}`,
+    projected: "scaled from a TK poll",
+    source: "source",
     houseMeta: (total, majority) => `${total} seats · majority ${majority}`,
     svgLabel: (house, seats) => `${house}, ${seats} seats selected`,
     majority: spare => spare === 0 ? "Majority, exactly" : `Majority, +${spare} spare`,
@@ -274,25 +293,53 @@ const VACANT = { id: "vacant", color: "", tk: 0, ek: 0 };
 // Names starting with "@" refer to a translation key.
 const displayName = name => name.startsWith("@") ? text()[name.slice(1)] : name;
 
+let DATA = null;
 let PARTIES = [];
+let neutralColors = new Map();
+// Per house: "current" or the pollster whose latest poll is shown.
+const sources = { tk: "current", ek: "current" };
 
-function buildParties(data) {
+function assignNeutralColors() {
+  const names = new Set([DATA.tk, DATA.ek, ...DATA.polls.map(p => p.seats)].flat().map(f => f.name));
+  const unknown = [...names].filter(name => !KNOWN.some(([known]) => known === name));
+  neutralColors = new Map(unknown.map((name, i) => [name, NEUTRAL_COLORS[i % NEUTRAL_COLORS.length]]));
+}
+
+// D'Hondt over the poll's seats, scaled from 150 to the house size.
+function projectSeats(pollSeats, total) {
+  const pollTotal = pollSeats.reduce((sum, p) => sum + p.seats, 0);
+  const projected = pollSeats.map(p => ({ name: p.name, seats: 0 }));
+  const quotient = i => pollSeats[i].seats / (projected[i].seats + 1);
+  for (let remaining = Math.round(total * pollTotal / 150); remaining > 0; remaining--) {
+    projected[projected.reduce((best, _, i) => quotient(i) > quotient(best) ? i : best, 0)].seats++;
+  }
+  return projected.filter(p => p.seats > 0);
+}
+
+const pollFor = house => DATA.polls.find(p => p.pollster === sources[house.key]);
+
+function seatList(house) {
+  const poll = pollFor(house);
+  if (!poll) return DATA[house.key];
+  return house.key === "tk" ? poll.seats : projectSeats(poll.seats, house.total);
+}
+
+function buildParties() {
+  const fullNames = new Map(DATA.tk.map(f => [f.name, f.fullName]));
   const byName = new Map();
   const entry = name => {
-    if (!byName.has(name)) byName.set(name, { id: name, short: name, name: "", tk: 0, ek: 0 });
+    if (!byName.has(name)) byName.set(name, { id: name, short: name, name: fullNames.get(name) ?? "", tk: 0, ek: 0 });
     return byName.get(name);
   };
-  data.tk.forEach(f => Object.assign(entry(f.name), { tk: f.seats, name: f.fullName }));
-  data.ek.forEach(f => { entry(f.name).ek = f.seats; });
+  HOUSES.forEach(house => seatList(house).forEach(f => { entry(f.name)[house.key] = f.seats; }));
 
-  let neutralIndex = 0;
   return [...byName.values()].map(p => {
     const knownIndex = KNOWN.findIndex(([name]) => name === p.id);
     const [, color, fullName] = KNOWN[knownIndex] ?? [];
     const isSingleMember = p.tk + p.ek === 1 || p.id.startsWith("Fractie-") || p.id.startsWith("Lid ");
     return {
       ...p,
-      color: color ?? NEUTRAL_COLORS[neutralIndex++ % NEUTRAL_COLORS.length],
+      color: color ?? neutralColors.get(p.id),
       name: fullName ?? (p.name && p.name !== p.id ? p.name : isSingleMember ? "@singleMember" : ""),
       order: knownIndex >= 0 ? knownIndex : UNKNOWN_ORDER,
     };
@@ -365,6 +412,25 @@ function hemicycleSvg(house) {
   </svg>`;
 }
 
+function sourceSelect(house) {
+  const formatDate = date => new Date(date).toLocaleDateString(text().locale, { day: "numeric", month: "short", timeZone: "UTC" });
+  const options = DATA.polls.map(p =>
+    `<option value="${p.pollster}"${sources[house.key] === p.pollster ? " selected" : ""}>${p.pollster} · ${formatDate(p.date)}</option>`
+  ).join("");
+  return `<select class="source" data-house="${house.key}" aria-label="${text().sourceLabel(house.name)}">
+    <option value="current">${text().currentSeats}</option>
+    <optgroup label="${house.key === "tk" ? text().polls : text().projectedPolls}">${options}</optgroup>
+  </select>`;
+}
+
+function houseMeta(house) {
+  const poll = pollFor(house);
+  const parts = [text().houseMeta(house.total, house.majority)];
+  if (poll && house.key !== "tk") parts.push(text().projected);
+  if (poll) parts.push(`<a href="${poll.url}">${text().source}</a>`);
+  return parts.join(" · ");
+}
+
 function renderHouses() {
   const container = document.getElementById("houses");
   container.innerHTML = HOUSES.map(house => {
@@ -379,7 +445,8 @@ function renderHouses() {
       : text().noneSelected;
     const segments = members.map(p => `<span style="width:${100 * p[house.key] / house.total}%;background:${p.color}"></span>`).join("");
     return `<article class="house">
-      <div class="house-head"><h2>${house.name}</h2><span class="meta">${text().houseMeta(house.total, house.majority)}</span></div>
+      <div class="house-head"><h2>${house.name}</h2>${sourceSelect(house)}</div>
+      <div class="meta">${houseMeta(house)}</div>
       ${hemicycleSvg(house)}
       <div class="stats"><span class="count">${seats}<small> / ${house.majority}</small></span>${pill}</div>
       <div class="bar-wrap"><div class="bar">${segments}</div><div class="tick" style="left:${100 * house.majority / house.total}%"></div></div>
@@ -500,6 +567,14 @@ document.getElementById("target").addEventListener("click", e => {
   document.querySelectorAll("#target button").forEach(b => b.setAttribute("aria-pressed", b === btn));
   renderSuggestions();
 });
+document.getElementById("houses").addEventListener("change", e => {
+  const select = e.target.closest("select.source");
+  if (!select) return;
+  sources[select.dataset.house] = select.value;
+  PARTIES = buildParties();
+  render();
+  document.querySelector(`select.source[data-house="${select.dataset.house}"]`)?.focus();
+});
 document.getElementById("preset-jetten").addEventListener("click", () => { selected = new Set(JETTEN); render(); });
 document.getElementById("clear").addEventListener("click", () => { selected = new Set(); render(); });
 
@@ -537,9 +612,10 @@ async function load() {
   try {
     const response = await fetch("api/fracties");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
-    PARTIES = buildParties(data);
-    updatedAt = new Date(data.updated);
+    DATA = await response.json();
+    assignNeutralColors();
+    PARTIES = buildParties();
+    updatedAt = new Date(DATA.updated);
     restoreSelection();
   } catch (error) {
     loadError = error.message;
